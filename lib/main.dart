@@ -48,7 +48,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
     '[Memory] Anti-cheat bypassed!',
   ];
 
-  // ОГРОМНЫЙ массив мусора (летит быстро, прочитать невозможно)
+  // ОГРОМНЫЙ массив мусора (будет повторяться)
   final List<String> _garbageLogs = [
     '[DYLIB] Loading libinject.dylib...',
     '[DYLIB] Resolving symbols...',
@@ -111,24 +111,6 @@ class _InjectorScreenState extends State<InjectorScreen> {
     '[DYLIB] Respringing...',
     '[DYLIB] Respring complete!',
     '[DYLIB] All done!',
-    '[DYLIB] Loading kernel cache...',
-    '[DYLIB] Kernel cache loaded!',
-    '[DYLIB] Patching sysent...',
-    '[DYLIB] Sysent patched!',
-    '[DYLIB] Overriding mach traps...',
-    '[DYLIB] Mach traps overridden!',
-    '[DYLIB] Bypassing SIP...',
-    '[DYLIB] SIP bypassed!',
-    '[DYLIB] Loading kext...',
-    '[DYLIB] Kext loaded!',
-    '[DYLIB] Overriding vnode operations...',
-    '[DYLIB] Vnode ops overridden!',
-    '[DYLIB] Hiding from sysctl...',
-    '[DYLIB] Hidden from sysctl!',
-    '[DYLIB] Bypassing quarantine...',
-    '[DYLIB] Quarantine bypassed!',
-    '[DYLIB] Overriding file ops...',
-    '[DYLIB] File ops overridden!',
   ];
 
   void _startInjection() {
@@ -141,11 +123,10 @@ class _InjectorScreenState extends State<InjectorScreen> {
 
     int logIndex = 0;
     int garbageIndex = 0;
-    bool realisticPhase = true;
     const int totalSeconds = 300; // 5 минут
     int secondsElapsed = 0;
 
-    _timer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
+    _timer = Timer.periodic(const Duration(milliseconds: 20), (timer) {
       setState(() {
         secondsElapsed++;
         _progress = (secondsElapsed / totalSeconds) * 100;
@@ -156,25 +137,22 @@ class _InjectorScreenState extends State<InjectorScreen> {
           return;
         }
 
-        // Первые 5 секунд (≈166 тиков по 30 мс)
-        if (secondsElapsed <= 166) {
-          // Реалистичные строки
-          if (logIndex < _realisticLogs.length && secondsElapsed % 5 == 0) {
+        // Первые 5 секунд (250 тиков по 20 мс = 5 секунд)
+        if (secondsElapsed <= 250) {
+          if (logIndex < _realisticLogs.length && secondsElapsed % 10 == 0) {
             _logLines.add(_realisticLogs[logIndex]);
             logIndex++;
           }
         } else {
-          // Мусор — очень быстро, по 3-4 строки за раз
+          // Мусор — ОЧЕНЬ БЫСТРО (по 20-30 строк за раз)
           if (garbageIndex < _garbageLogs.length) {
-    // Всегда добавляем по 10 строк за раз
-    int count = 10;
-    for (int i = 0; i < count && garbageIndex < _garbageLogs.length; i++) {
-        _logLines.add(_garbageLogs[garbageIndex]);
-        garbageIndex++;
-    }
-}
+            int count = 25 + (garbageIndex % 10); // от 25 до 34 строк за раз
+            for (int i = 0; i < count && garbageIndex < _garbageLogs.length; i++) {
+              _logLines.add(_garbageLogs[garbageIndex]);
+              garbageIndex++;
+            }
           } else {
-            garbageIndex = 0;
+            garbageIndex = 0; // повторяем
           }
         }
 
@@ -183,7 +161,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
           if (_scrollController.hasClients) {
             _scrollController.animateTo(
               _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 20),
+              duration: const Duration(milliseconds: 10),
               curve: Curves.easeOut,
             );
           }
@@ -204,7 +182,6 @@ class _InjectorScreenState extends State<InjectorScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Основной экран
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -295,7 +272,6 @@ class _InjectorScreenState extends State<InjectorScreen> {
             ),
           ),
 
-          // Сообщение YOU SCAMMED (без кнопки)
           if (_showScam)
             Container(
               color: Colors.black,
@@ -303,7 +279,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
               height: double.infinity,
               child: const Center(
                 child: Text(
-                  'YOU SCAMMED',
+                  'YOU GOT SCAMMED',
                   style: TextStyle(
                     fontSize: 48,
                     fontWeight: FontWeight.bold,
