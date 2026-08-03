@@ -36,19 +36,81 @@ class _InjectorScreenState extends State<InjectorScreen> {
   bool _showScam = false;
   List<String> _logLines = [];
   Timer? _timer;
+  final ScrollController _scrollController = ScrollController();
 
-  final List<String> _logMessages = [
+  // Реалистичные строки для первых 5 секунд
+  final List<String> _realisticLogs = [
     '[System] Initializing injection engine...',
-    '[Kernel] Bypassing PAC protection...',
-    '[Memory] Allocating payload buffer...',
-    '[Exploit] CVE-2026-20700 triggered',
-    '[ROP] Building gadget chain...',
-    '[JOP] Executing shellcode...',
-    '[IO] Overwriting kernel memory...',
-    '[SELinux] Disabling security hooks...',
-    '[SELF] Unlocking restricted regions...',
-    '[KERN] Injecting rootkit...',
-    '[DONE] Injection complete. You got scammed.',
+    '[Memory] Searching for PUBG Mobile process...',
+    '[Memory] Process found!',
+    '[Memory] Allocating payload buffer (2.4 MB)...',
+    '[Memory] Bypassing anti-cheat...',
+    '[Memory] Anti-cheat bypassed!',
+  ];
+
+  // ОГРОМНЫЙ массив мусора для оставшихся 295 секунд (быстро, много, нечитаемо)
+  final List<String> _garbageLogs = [
+    '[DYLIB] Loading libinject.dylib...',
+    '[DYLIB] Resolving symbols...',
+    '[DYLIB] Entry point found!',
+    '[DYLIB] Bypassing PAC...',
+    '[DYLIB] PAC bypassed!',
+    '[DYLIB] KPP bypass...',
+    '[DYLIB] KPP bypassed!',
+    '[DYLIB] Disabling watchdog...',
+    '[DYLIB] Watchdog disabled!',
+    '[DYLIB] Overwriting pointers...',
+    '[DYLIB] Pointers overwritten!',
+    '[DYLIB] Kernel exploit...',
+    '[DYLIB] Kernel exploit triggered!',
+    '[DYLIB] Root privileges...',
+    '[DYLIB] Root acquired!',
+    '[DYLIB] Mounting RW...',
+    '[DYLIB] Filesystem mounted!',
+    '[DYLIB] SpringBoard inject...',
+    '[DYLIB] SpringBoard injected!',
+    '[DYLIB] Respring...',
+    '[DYLIB] Respring complete!',
+    '[DYLIB] AMFI bypass...',
+    '[DYLIB] AMFI bypassed!',
+    '[DYLIB] Sandbox escape...',
+    '[DYLIB] Sandbox escaped!',
+    '[DYLIB] Kernel extension...',
+    '[DYLIB] Kernel extension loaded!',
+    '[DYLIB] System calls override...',
+    '[DYLIB] System calls overridden!',
+    '[DYLIB] Hide process...',
+    '[DYLIB] Process hidden!',
+    '[DYLIB] SSL bypass...',
+    '[DYLIB] SSL bypassed!',
+    '[DYLIB] Decrypt traffic...',
+    '[DYLIB] Traffic decrypted!',
+    '[DYLIB] Game inject...',
+    '[DYLIB] Game injected!',
+    '[DYLIB] Hook render...',
+    '[DYLIB] ESP activated!',
+    '[DYLIB] Aimbot activated!',
+    '[DYLIB] Clean traces...',
+    '[DYLIB] Traces cleaned!',
+    '[DYLIB] Writing payload...',
+    '[DYLIB] Payload written!',
+    '[DYLIB] Triggering exploit...',
+    '[DYLIB] Exploit triggered!',
+    '[DYLIB] Bypassing signature check...',
+    '[DYLIB] Signature check bypassed!',
+    '[DYLIB] Loading kernel module...',
+    '[DYLIB] Kernel module loaded!',
+    '[DYLIB] Overriding syscalls...',
+    '[DYLIB] Syscalls overridden!',
+    '[DYLIB] Hiding from lsof...',
+    '[DYLIB] Hidden from lsof!',
+    '[DYLIB] Bypassing codesign...',
+    '[DYLIB] Codesign bypassed!',
+    '[DYLIB] Injecting into SpringBoard...',
+    '[DYLIB] SpringBoard injected!',
+    '[DYLIB] Respringing...',
+    '[DYLIB] Respring complete!',
+    '[DYLIB] All done!',
   ];
 
   void _startInjection() {
@@ -60,28 +122,54 @@ class _InjectorScreenState extends State<InjectorScreen> {
     });
 
     int logIndex = 0;
+    int garbageIndex = 0;
+    bool realisticPhase = true;
+    const int totalSeconds = 300; // 5 минут
+    int secondsElapsed = 0;
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       setState(() {
-        _progress = (_progress + 1.0) / 300 * 100;
-        if (_progress > 100) _progress = 100;
-
-        if (logIndex < _logMessages.length && _progress.toInt() % 20 == 0) {
-          _logLines.add(_logMessages[logIndex]);
-          logIndex++;
-        }
-
+        secondsElapsed++;
+        _progress = (secondsElapsed / totalSeconds) * 100;
         if (_progress >= 100) {
+          _progress = 100;
           timer.cancel();
           _showScam = true;
-          Future.delayed(const Duration(seconds: 3), () {
-            setState(() {
-              _isInjecting = false;
-              _progress = 0.0;
-              _logLines = [];
-            });
-          });
+          return;
         }
+
+        // Первые 5 секунд (100 тиков по 50 мс = 5 секунд)
+        if (secondsElapsed <= 100) {
+          // Реалистичные строки — медленно, по одной
+          if (logIndex < _realisticLogs.length && secondsElapsed % 4 == 0) {
+            _logLines.add(_realisticLogs[logIndex]);
+            logIndex++;
+          }
+        } else {
+          // Остальное время — мусор летит очень быстро
+          if (garbageIndex < _garbageLogs.length) {
+            // Добавляем по 2-3 строки за раз
+            int count = (garbageIndex % 3 == 0) ? 3 : 2;
+            for (int i = 0; i < count && garbageIndex < _garbageLogs.length; i++) {
+              _logLines.add(_garbageLogs[garbageIndex]);
+              garbageIndex++;
+            }
+          } else {
+            // Если мусор кончился — повторяем
+            garbageIndex = 0;
+          }
+        }
+
+        // Автоматический скролл вниз
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 30),
+              curve: Curves.easeOut,
+            );
+          }
+        });
       });
     });
   }
@@ -89,6 +177,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -156,26 +245,26 @@ class _InjectorScreenState extends State<InjectorScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    Container(
-                      height: 120,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: SingleChildScrollView(
-                        reverse: true,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _logLines.map((line) {
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          itemCount: _logLines.length,
+                          itemBuilder: (context, index) {
+                            final isGarbage = index > 6; // после первых 6 строк — мусор
                             return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              padding: const EdgeInsets.symmetric(vertical: 1),
                               child: Text(
-                                line,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
+                                _logLines[index],
+                                style: TextStyle(
+                                  fontSize: isGarbage ? 9 : 11,
+                                  color: isGarbage ? Colors.grey[600] : Colors.grey,
                                   fontFamily: 'Courier',
                                 ),
                               ),
                             );
-                          }).toList(),
+                          },
                         ),
                       ),
                     ),
@@ -192,16 +281,48 @@ class _InjectorScreenState extends State<InjectorScreen> {
               color: Colors.black,
               width: double.infinity,
               height: double.infinity,
-              child: const Center(
-                child: Text(
-                  'YOU GOT SCAMMED',
-                  style: TextStyle(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Courier',
-                    color: Colors.white,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'YOU GOT SCAMMED',
+                    style: TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Courier',
+                      color: Colors.white,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    '😂',
+                    style: TextStyle(
+                      fontSize: 60,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _showScam = false;
+                        _isInjecting = false;
+                        _progress = 0.0;
+                        _logLines = [];
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                    ),
+                    child: const Text(
+                      'RESTART APP',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Courier',
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
