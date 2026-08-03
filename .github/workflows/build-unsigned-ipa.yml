@@ -19,34 +19,16 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: |
-          flutter pub get
-          cd ios
-          pod install
-          cd ..
+        run: flutter pub get
 
-      - name: Build with xcodebuild (no sign)
+      - name: Build IPA
+        run: flutter build ipa --release --no-codesign
+
+      - name: Package IPA
         run: |
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath ../build/ios \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            PROVISIONING_PROFILE="" \
-            DEVELOPMENT_TEAM="" \
-            -quiet
-          cd ..
-          
-      - name: Create IPA
-        run: |
-          APP_PATH=$(find build/ios/Build/Products/Release-iphoneos -name "*.app" | head -1)
           mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
-          zip -r app-unsigned.ipa Payload
+          cp -R build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload app-unsigned.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
