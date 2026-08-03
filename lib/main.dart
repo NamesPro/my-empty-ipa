@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 void main() => runApp(const MyApp());
 
@@ -32,13 +31,14 @@ class InjectorScreen extends StatefulWidget {
   State<InjectorScreen> createState() => _InjectorScreenState();
 }
 
+// Используем SingleTickerProviderStateMixin для AnimationController
 class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProviderStateMixin {
   bool _isInjecting = false;
   bool _showScam = false;
-  bool _isProtected = false;
 
   late AnimationController _progressController;
   
+  // ValueNotifier позволяет обновлять только список логов, не перерисовывая весь экран
   final ValueNotifier<List<String>> _logsNotifier = ValueNotifier([]);
   Timer? _logTimer;
   final Random _random = Random();
@@ -87,6 +87,7 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
+    // Ровно 5 минут (300 секунд) на весь процесс
     _progressController = AnimationController(
       vsync: this,
       duration: const Duration(minutes: 5),
@@ -95,33 +96,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
           _finishScam();
         }
       });
-    
-    // Включаем защиту от записи экрана при запуске
-    _enableScreenProtection();
-  }
-
-  void _enableScreenProtection() {
-    // Защита от скриншотов и записи экрана
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
-    
-    // Защита от записи экрана через платформенные методы
-    if (Theme.of(context).platform == TargetPlatform.iOS) {
-      // iOS: Используем безопасный флаг
-      // Это предотвращает запись экрана, делая его черным при записи
-      const MethodChannel('screen_protection')
-          .invokeMethod('enableProtection');
-    }
-    
-    _isProtected = true;
-  }
-
-  void _disableScreenProtection() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
-    if (Theme.of(context).platform == TargetPlatform.iOS) {
-      const MethodChannel('screen_protection')
-          .invokeMethod('disableProtection');
-    }
-    _isProtected = false;
   }
 
   void _startInjection() {
@@ -130,31 +104,34 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
       _showScam = false;
     });
     
-    // Включаем защиту экрана
-    _enableScreenProtection();
-    
     _logsNotifier.value = [];
     _progressController.forward(from: 0.0);
 
     int tickCount = 0;
 
+    // Таймер работает на частоте ~60 FPS (16 мс)
     _logTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       tickCount++;
       List<String> currentLogs = List.from(_logsNotifier.value);
 
+      // Первые 3 секунды (примерно 180 тиков) выводим реалистичные логи
       if (tickCount < 180) {
-        if (tickCount % 30 == 0) {
+        if (tickCount % 30 == 0) { // Каждые полсекунды
           int realisticIndex = (tickCount ~/ 30) - 1;
           if (realisticIndex < _realisticLogs.length) {
+            // Добавляем в НАЧАЛО списка (так как список перевернут)
             currentLogs.insert(0, _realisticLogs[realisticIndex]);
           }
         }
       } else {
+        // НАЧИНАЕТСЯ БЕЗУМИЕ: 80 строк за ОДИН кадр (около 5000 строк в секунду)
         for (int i = 0; i < 80; i++) {
           currentLogs.insert(0, _garbageLogs[_random.nextInt(_garbageLogs.length)]);
         }
       }
 
+      // ОПТИМИЗАЦИЯ: Удерживаем в памяти только последние 150 строк.
+      // Это спасет приложение от вылета из-за нехватки оперативной памяти.
       if (currentLogs.length > 150) {
         currentLogs = currentLogs.sublist(0, 150);
       }
@@ -169,60 +146,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
       _isInjecting = false;
       _showScam = true;
     });
-
-    // Через 3 секунды после скама делаем respring
-    Future.delayed(const Duration(seconds: 3), () {
-      _performRespring();
-    });
-  }
-
-  void _performRespring() {
-    // Отключаем защиту экрана перед respring
-    _disableScreenProtection();
-    
-    // Эффект вспышки
-    _showFlashEffect();
-    
-    // Выполняем respring
-    if (Theme.of(context).platform == TargetPlatform.iOS) {
-      // iOS respring через приватные методы
-      const MethodChannel('respring_channel').invokeMethod('respring');
-    } else {
-      // Android альтернатива - перезапуск приложения
-      _restartApp();
-    }
-  }
-
-  void _showFlashEffect() {
-    // Визуальный эффект вспышки
-    setState(() {
-      // Добавляем белый слой поверх всего
-    });
-    
-    // Создаем вспышку
-    final overlay = Overlay.of(context);
-    final entry = OverlayEntry(
-      builder: (context) => Container(
-        color: Colors.white,
-        opacity: const AlwaysStoppedAnimation(1.0),
-        duration: const Duration(milliseconds: 100),
-      ),
-    );
-    
-    overlay.insert(entry);
-    
-    // Убираем вспышку через 100ms
-    Future.delayed(const Duration(milliseconds: 100), () {
-      entry.remove();
-    });
-  }
-
-  void _restartApp() {
-    // Для Android - перезапуск через системный метод
-    final MethodChannel('restart_channel').invokeMethod('restartApp');
-    
-    // Запасной вариант - выход из приложения
-    SystemNavigator.pop();
   }
 
   @override
@@ -230,7 +153,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
     _logTimer?.cancel();
     _progressController.dispose();
     _logsNotifier.dispose();
-    _disableScreenProtection();
     super.dispose();
   }
 
@@ -280,6 +202,7 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
 
                   if (_isInjecting) ...[
                     const SizedBox(height: 20),
+                    // Используем AnimatedBuilder для плавной отрисовки прогресса
                     AnimatedBuilder(
                       animation: _progressController,
                       builder: (context, child) {
@@ -310,13 +233,15 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
+                        // ValueListenableBuilder обновляет только список логов
                         child: ValueListenableBuilder<List<String>>(
                           valueListenable: _logsNotifier,
                           builder: (context, logs, child) {
                             return ListView.builder(
-                              reverse: true,
+                              reverse: true, // КЛЮЧЕВАЯ ОПТИМИЗАЦИЯ: список строится снизу вверх
                               itemCount: logs.length,
                               itemBuilder: (context, index) {
+                                // Поскольку список перевернут, index 0 - это последняя добавленная строка
                                 final isGarbage = logs.length > 10;
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 1),
@@ -342,49 +267,37 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
             ),
           ),
 
-          // Экран СКАМА с защитой от записи
+          // Экран СКАМА
           if (_showScam)
             Container(
               color: Colors.black,
               width: double.infinity,
               height: double.infinity,
-              // Защита от скриншотов через Flutter
-              child: RepaintBoundary(
-                child: const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'ТЫ ЗАСКАМЛЕН',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Courier',
-                          color: Colors.redAccent,
-                        ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'ТЫ ЗАСКАМЛЕН',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Courier',
+                        color: Colors.redAccent,
                       ),
-                      SizedBox(height: 20),
-                      Text(
-                        'YOU GOT SCAMMED',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontFamily: 'Courier',
-                          color: Colors.white,
-                        ),
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      'YOU GOT SCAMMED',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontFamily: 'Courier',
+                        color: Colors.white,
                       ),
-                      SizedBox(height: 40),
-                      Text(
-                        '📱 SCREEN RECORDING BLOCKED',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontFamily: 'Courier',
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
