@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 void main() => runApp(const MyApp());
@@ -30,15 +31,18 @@ class InjectorScreen extends StatefulWidget {
   State<InjectorScreen> createState() => _InjectorScreenState();
 }
 
-class _InjectorScreenState extends State<InjectorScreen> {
+// Используем SingleTickerProviderStateMixin для AnimationController
+class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProviderStateMixin {
   bool _isInjecting = false;
-  double _progress = 0.0;
   bool _showScam = false;
-  List<String> _logLines = [];
-  Timer? _timer;
-  final ScrollController _scrollController = ScrollController();
 
-  // Реалистичные строки для первых 5 секунд
+  late AnimationController _progressController;
+  
+  // ValueNotifier позволяет обновлять только список логов, не перерисовывая весь экран
+  final ValueNotifier<List<String>> _logsNotifier = ValueNotifier([]);
+  Timer? _logTimer;
+  final Random _random = Random();
+
   final List<String> _realisticLogs = [
     '[System] Initializing injection engine...',
     '[Memory] Searching for PUBG Mobile process...',
@@ -48,132 +52,107 @@ class _InjectorScreenState extends State<InjectorScreen> {
     '[Memory] Anti-cheat bypassed!',
   ];
 
-  // ОГРОМНЫЙ массив мусора (будет повторяться)
   final List<String> _garbageLogs = [
     '[DYLIB] Loading libinject.dylib...',
     '[DYLIB] Resolving symbols...',
     '[DYLIB] Entry point found!',
     '[DYLIB] Bypassing PAC...',
-    '[DYLIB] PAC bypassed!',
-    '[DYLIB] KPP bypass...',
     '[DYLIB] KPP bypassed!',
     '[DYLIB] Disabling watchdog...',
-    '[DYLIB] Watchdog disabled!',
     '[DYLIB] Overwriting pointers...',
-    '[DYLIB] Pointers overwritten!',
-    '[DYLIB] Kernel exploit...',
     '[DYLIB] Kernel exploit triggered!',
-    '[DYLIB] Root privileges...',
     '[DYLIB] Root acquired!',
     '[DYLIB] Mounting RW...',
     '[DYLIB] Filesystem mounted!',
-    '[DYLIB] SpringBoard inject...',
     '[DYLIB] SpringBoard injected!',
-    '[DYLIB] Respring...',
     '[DYLIB] Respring complete!',
-    '[DYLIB] AMFI bypass...',
     '[DYLIB] AMFI bypassed!',
-    '[DYLIB] Sandbox escape...',
     '[DYLIB] Sandbox escaped!',
-    '[DYLIB] Kernel extension...',
     '[DYLIB] Kernel extension loaded!',
-    '[DYLIB] System calls override...',
     '[DYLIB] System calls overridden!',
-    '[DYLIB] Hide process...',
     '[DYLIB] Process hidden!',
-    '[DYLIB] SSL bypass...',
     '[DYLIB] SSL bypassed!',
-    '[DYLIB] Decrypt traffic...',
     '[DYLIB] Traffic decrypted!',
-    '[DYLIB] Game inject...',
     '[DYLIB] Game injected!',
-    '[DYLIB] Hook render...',
     '[DYLIB] ESP activated!',
     '[DYLIB] Aimbot activated!',
-    '[DYLIB] Clean traces...',
     '[DYLIB] Traces cleaned!',
-    '[DYLIB] Writing payload...',
     '[DYLIB] Payload written!',
-    '[DYLIB] Triggering exploit...',
     '[DYLIB] Exploit triggered!',
-    '[DYLIB] Bypassing signature check...',
     '[DYLIB] Signature check bypassed!',
-    '[DYLIB] Loading kernel module...',
-    '[DYLIB] Kernel module loaded!',
-    '[DYLIB] Overriding syscalls...',
-    '[DYLIB] Syscalls overridden!',
-    '[DYLIB] Hiding from lsof...',
     '[DYLIB] Hidden from lsof!',
-    '[DYLIB] Bypassing codesign...',
     '[DYLIB] Codesign bypassed!',
-    '[DYLIB] Injecting into SpringBoard...',
-    '[DYLIB] SpringBoard injected!',
-    '[DYLIB] Respringing...',
-    '[DYLIB] Respring complete!',
-    '[DYLIB] All done!',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Ровно 5 минут (300 секунд) на весь процесс
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(minutes: 5),
+    )..addListener(() {
+        if (_progressController.isCompleted) {
+          _finishScam();
+        }
+      });
+  }
 
   void _startInjection() {
     setState(() {
       _isInjecting = true;
-      _progress = 0.0;
       _showScam = false;
-      _logLines = [];
     });
+    
+    _logsNotifier.value = [];
+    _progressController.forward(from: 0.0);
 
-    int logIndex = 0;
-    int garbageIndex = 0;
-    const int totalSeconds = 300; // 5 минут
-    int secondsElapsed = 0;
+    int tickCount = 0;
 
-    _timer = Timer.periodic(const Duration(milliseconds: 20), (timer) {
-      setState(() {
-        secondsElapsed++;
-        _progress = (secondsElapsed / totalSeconds) * 100;
-        if (_progress >= 100) {
-          _progress = 100;
-          timer.cancel();
-          _showScam = true;
-          return;
-        }
+    // Таймер работает на частоте ~60 FPS (16 мс)
+    _logTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      tickCount++;
+      List<String> currentLogs = List.from(_logsNotifier.value);
 
-        // Первые 5 секунд (250 тиков по 20 мс = 5 секунд)
-        if (secondsElapsed <= 250) {
-          if (logIndex < _realisticLogs.length && secondsElapsed % 10 == 0) {
-            _logLines.add(_realisticLogs[logIndex]);
-            logIndex++;
-          }
-        } else {
-          // Мусор — ОЧЕНЬ БЫСТРО (по 20-30 строк за раз)
-          if (garbageIndex < _garbageLogs.length) {
-            int count = 25 + (garbageIndex % 10); // от 25 до 34 строк за раз
-            for (int i = 0; i < count && garbageIndex < _garbageLogs.length; i++) {
-              _logLines.add(_garbageLogs[garbageIndex]);
-              garbageIndex++;
-            }
-          } else {
-            garbageIndex = 0; // повторяем
+      // Первые 3 секунды (примерно 180 тиков) выводим реалистичные логи
+      if (tickCount < 180) {
+        if (tickCount % 30 == 0) { // Каждые полсекунды
+          int realisticIndex = (tickCount ~/ 30) - 1;
+          if (realisticIndex < _realisticLogs.length) {
+            // Добавляем в НАЧАЛО списка (так как список перевернут)
+            currentLogs.insert(0, _realisticLogs[realisticIndex]);
           }
         }
+      } else {
+        // НАЧИНАЕТСЯ БЕЗУМИЕ: 80 строк за ОДИН кадр (около 5000 строк в секунду)
+        for (int i = 0; i < 80; i++) {
+          currentLogs.insert(0, _garbageLogs[_random.nextInt(_garbageLogs.length)]);
+        }
+      }
 
-        // Автоматический скролл вниз
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients) {
-            _scrollController.animateTo(
-              _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 10),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      });
+      // ОПТИМИЗАЦИЯ: Удерживаем в памяти только последние 150 строк.
+      // Это спасет приложение от вылета из-за нехватки оперативной памяти.
+      if (currentLogs.length > 150) {
+        currentLogs = currentLogs.sublist(0, 150);
+      }
+
+      _logsNotifier.value = currentLogs;
+    });
+  }
+
+  void _finishScam() {
+    _logTimer?.cancel();
+    setState(() {
+      _isInjecting = false;
+      _showScam = true;
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
-    _scrollController.dispose();
+    _logTimer?.cancel();
+    _progressController.dispose();
+    _logsNotifier.dispose();
     super.dispose();
   }
 
@@ -200,7 +179,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
                   ),
                   const SizedBox(height: 50),
 
-                  if (!_isInjecting)
+                  if (!_isInjecting && !_showScam)
                     ElevatedButton(
                       onPressed: _startInjection,
                       style: ElevatedButton.styleFrom(
@@ -223,69 +202,102 @@ class _InjectorScreenState extends State<InjectorScreen> {
 
                   if (_isInjecting) ...[
                     const SizedBox(height: 20),
-                    SizedBox(
-                      width: 280,
-                      child: LinearProgressIndicator(
-                        value: _progress / 100,
-                        backgroundColor: Colors.grey[800],
-                        color: Colors.white,
-                        minHeight: 6,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      '${_progress.toInt()}%',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontFamily: 'Courier',
-                      ),
+                    // Используем AnimatedBuilder для плавной отрисовки прогресса
+                    AnimatedBuilder(
+                      animation: _progressController,
+                      builder: (context, child) {
+                        return Column(
+                          children: [
+                            SizedBox(
+                              width: 280,
+                              child: LinearProgressIndicator(
+                                value: _progressController.value,
+                                backgroundColor: Colors.grey[800],
+                                color: Colors.white,
+                                minHeight: 6,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              '${(_progressController.value * 100).toInt()}%',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontFamily: 'Courier',
+                              ),
+                            ),
+                          ],
+                        );
+                      }
                     ),
                     const SizedBox(height: 20),
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          itemCount: _logLines.length,
-                          itemBuilder: (context, index) {
-                            final isGarbage = index > 6;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 1),
-                              child: Text(
-                                _logLines[index],
-                                style: TextStyle(
-                                  fontSize: isGarbage ? 8 : 11,
-                                  color: isGarbage ? Colors.grey[500] : Colors.grey,
-                                  fontFamily: 'Courier',
-                                ),
-                              ),
+                        // ValueListenableBuilder обновляет только список логов
+                        child: ValueListenableBuilder<List<String>>(
+                          valueListenable: _logsNotifier,
+                          builder: (context, logs, child) {
+                            return ListView.builder(
+                              reverse: true, // КЛЮЧЕВАЯ ОПТИМИЗАЦИЯ: список строится снизу вверх
+                              itemCount: logs.length,
+                              itemBuilder: (context, index) {
+                                // Поскольку список перевернут, index 0 - это последняя добавленная строка
+                                final isGarbage = logs.length > 10;
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 1),
+                                  child: Text(
+                                    logs[index],
+                                    style: TextStyle(
+                                      fontSize: isGarbage ? 8 : 11,
+                                      color: isGarbage ? Colors.grey[600] : Colors.grey[300],
+                                      fontFamily: 'Courier',
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),
                       ),
                     ),
                   ],
-
                   const Spacer(),
                 ],
               ),
             ),
           ),
 
+          // Экран СКАМА
           if (_showScam)
             Container(
               color: Colors.black,
               width: double.infinity,
               height: double.infinity,
               child: const Center(
-                child: Text(
-                  'YOU GOT SCAMMED',
-                  style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Courier',
-                    color: Colors.white,
-                  ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'ТЫ ЗАСКАМЛЕН',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Courier',
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      'YOU GOT SCAMMED',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontFamily: 'Courier',
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
