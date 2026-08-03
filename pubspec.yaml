@@ -1,22 +1,17 @@
-name: hello_world
+name: void_injector
+description: A fake injector app for pranks.
+version: 1.0.0
 
 environment:
-  sdk: ^3.11.0-0
-
-resolution: workspace
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
 
-
 dev_dependencies:
-  flutter_driver:
-    sdk: flutter
   flutter_test:
     sdk: flutter
-  test: any
 
-  webdriver: any
-
-# PUBSPEC CHECKSUM: mut18q
+flutter:
+  uses-material-design: true
