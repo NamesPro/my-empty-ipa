@@ -1,20 +1,12 @@
-name: void_injector
-description: A new Flutter project.
-publish_to: 'none'
-version: 1.0.0+1
+#include "AppDelegate.h"
+#include "GeneratedPluginRegistrant.h"
 
-environment:
-  sdk: '>=3.0.0 <4.0.0'
+@implementation AppDelegate
 
-dependencies:
-  flutter:
-    sdk: flutter
-  no_screenshot: ^0.3.0
+- (BOOL)application:(UIApplication *)application
+    didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+  [GeneratedPluginRegistrant registerWithRegistry:self];
+  return [super application:application didFinishLaunchingWithOptions:launchOptions];
+}
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
-
-flutter:
-  uses-material-design: true
+@end
