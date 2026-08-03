@@ -7,7 +7,8 @@
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
   [GeneratedPluginRegistrant registerWithRegistry:self];
 
-  // Магия для скрытия экрана на скриншотах и записях
+  // Создаем невидимое поле с паролем (isSecureTextEntry)
+  // Система iOS подумает, что тут вводится пароль, и сама закрасит скриншоты в черный цвет
   UIWindow *window = self.window;
   if (window != nil) {
       UITextField *field = [[UITextField alloc] init];
