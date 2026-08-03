@@ -42,11 +42,10 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
 
   final List<String> _realisticLogs = [
     '[System] Initializing injection engine...',
-    '[Memory] Searching for PUBG Mobile process...',
+    '[Memory] Searching for target process...',
     '[Memory] Process found!',
-    '[Memory] Allocating payload buffer (2.4 MB)...',
+    '[Memory] Allocating payload buffer...',
     '[Memory] Bypassing anti-cheat...',
-    '[Memory] Anti-cheat bypassed!',
   ];
 
   final List<String> _garbageLogs = [
@@ -55,36 +54,16 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
     '[DYLIB] Entry point found!',
     '[DYLIB] Bypassing PAC...',
     '[DYLIB] KPP bypassed!',
-    '[DYLIB] Disabling watchdog...',
-    '[DYLIB] Overwriting pointers...',
     '[DYLIB] Kernel exploit triggered!',
-    '[DYLIB] Root acquired!',
-    '[DYLIB] Mounting RW...',
-    '[DYLIB] Filesystem mounted!',
-    '[DYLIB] SpringBoard injected!',
-    '[DYLIB] Respring complete!',
-    '[DYLIB] AMFI bypassed!',
     '[DYLIB] Sandbox escaped!',
-    '[DYLIB] Kernel extension loaded!',
-    '[DYLIB] System calls overridden!',
-    '[DYLIB] Process hidden!',
-    '[DYLIB] SSL bypassed!',
-    '[DYLIB] Traffic decrypted!',
     '[DYLIB] Game injected!',
-    '[DYLIB] ESP activated!',
-    '[DYLIB] Aimbot activated!',
     '[DYLIB] Traces cleaned!',
-    '[DYLIB] Payload written!',
-    '[DYLIB] Exploit triggered!',
-    '[DYLIB] Signature check bypassed!',
-    '[DYLIB] Hidden from lsof!',
-    '[DYLIB] Codesign bypassed!',
   ];
 
   @override
   void initState() {
     super.initState();
-    // Ровно 5 минут (300 секунд) на весь процесс
+    // Таймер на 5 минут
     _progressController = AnimationController(
       vsync: this,
       duration: const Duration(minutes: 5),
@@ -106,7 +85,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
 
     int tickCount = 0;
 
-    // Таймер работает на высокой скорости (~60 FPS)
     _logTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       tickCount++;
       List<String> currentLogs = List.from(_logsNotifier.value);
@@ -119,7 +97,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
           }
         }
       } else {
-        // Безумная скорость потока логов
         for (int i = 0; i < 80; i++) {
           currentLogs.insert(0, _garbageLogs[_random.nextInt(_garbageLogs.length)]);
         }
@@ -128,7 +105,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
       if (currentLogs.length > 150) {
         currentLogs = currentLogs.sublist(0, 150);
       }
-
       _logsNotifier.value = currentLogs;
     });
   }
