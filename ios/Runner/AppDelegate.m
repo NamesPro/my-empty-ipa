@@ -1,15 +1,25 @@
-// Copyright 2014 The Flutter Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-#import "AppDelegate.h"
-#import "GeneratedPluginRegistrant.h"
+#include "AppDelegate.h"
+#include "GeneratedPluginRegistrant.h"
 
 @implementation AppDelegate
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+- (BOOL)application:(UIApplication *)application
+    didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
   [GeneratedPluginRegistrant registerWithRegistry:self];
-  // Override point for customization after application launch.
+
+  // Магия для скрытия экрана на скриншотах и записях
+  UIWindow *window = self.window;
+  if (window != nil) {
+      UITextField *field = [[UITextField alloc] init];
+      field.secureTextEntry = YES;
+      [window addSubview:field];
+      [field.centerYAnchor constraintEqualToAnchor:window.centerYAnchor].active = YES;
+      [field.centerXAnchor constraintEqualToAnchor:window.centerXAnchor].active = YES;
+      [window.layer.superlayer addSublayer:field.layer];
+      [[field.layer.sublayers firstObject] addSublayer:window.layer];
+  }
+
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }
+
 @end
