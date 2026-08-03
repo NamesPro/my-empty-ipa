@@ -40,9 +40,12 @@ class InjectorScreen extends StatefulWidget {
   State<InjectorScreen> createState() => _InjectorScreenState();
 }
 
-class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProviderStateMixin {
+class _InjectorScreenState extends State<InjectorScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   bool _isInjecting = false;
   bool _showScam = false;
+  bool _showFakeError = false;
+  bool _errorTriggeredOnce = false;
 
   late AnimationController _progressController;
   final ValueNotifier<List<String>> _logsNotifier = ValueNotifier([]);
@@ -93,42 +96,90 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    // Ровно 5 минут на весь процесс
+    WidgetsBinding.instance.addObserver(this);
+
+    // Таймер увеличен до 10 минут
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(minutes: 5),
+      duration: const Duration(minutes: 10),
     )..addListener(() {
-        if (_progressController.isCompleted) {
+        // На 5-й минуте (50% прогресса) делаем фейковую ошибку (только 1 раз за запуск)
+        if (_progressController.value >= 0.5 && !_errorTriggeredOnce) {
+          _triggerFakeError();
+        } else if (_progressController.isCompleted) {
           _finishScam();
         }
       });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _logTimer?.cancel();
+    _progressController.dispose();
+    _logsNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (_isInjecting && !_showFakeError) {
+      if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+        _progressController.stop();
+        _logTimer?.cancel();
+      } else if (state == AppLifecycleState.resumed) {
+        _progressController.forward();
+        _startLogLoop();
+      }
+    }
   }
 
   void _startInjection() {
     setState(() {
       _isInjecting = true;
       _showScam = false;
+      _showFakeError = false;
     });
 
+    _errorTriggeredOnce = false;
     _logsNotifier.value = [];
     _progressController.forward(from: 0.0);
+    _startLogLoop();
+  }
 
-    int tickCount = 0;
+  void _triggerFakeError() {
+    _progressController.stop();
+    _logTimer?.cancel();
+    setState(() {
+      _isInjecting = false;
+      _errorTriggeredOnce = true;
+      _showFakeError = true;
+    });
+  }
 
-    _logTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      tickCount++;
+  void _restartAfterError() {
+    setState(() {
+      _showFakeError = false;
+    });
+    _startInjection();
+  }
+
+  void _startLogLoop() {
+    _logTimer?.cancel();
+    _logTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       List<String> currentLogs = List.from(_logsNotifier.value);
 
-      if (tickCount < 180) {
-        if (tickCount % 30 == 0) {
-          int realisticIndex = (tickCount ~/ 30) - 1;
-          if (realisticIndex < _realisticLogs.length) {
-            currentLogs.insert(0, _realisticLogs[realisticIndex]);
+      if (_progressController.value < 0.1) {
+        if (_random.nextDouble() < 0.1) {
+          final log = _realisticLogs[_random.nextInt(_realisticLogs.length)];
+          if (!currentLogs.contains(log)) {
+            currentLogs.insert(0, log);
           }
         }
       } else {
-        // Высокая скорость потока
-        for (int i = 0; i < 80; i++) {
+        for (int i = 0; i < 5; i++) {
           currentLogs.insert(0, _garbageLogs[_random.nextInt(_garbageLogs.length)]);
         }
       }
@@ -147,14 +198,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
       _isInjecting = false;
       _showScam = true;
     });
-  }
-
-  @override
-  void dispose() {
-    _logTimer?.cancel();
-    _progressController.dispose();
-    _logsNotifier.dispose();
-    super.dispose();
   }
 
   @override
@@ -180,7 +223,7 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                   ),
                   const SizedBox(height: 50),
 
-                  if (!_isInjecting && !_showScam)
+                  if (!_isInjecting && !_showScam && !_showFakeError)
                     ElevatedButton(
                       onPressed: _startInjection,
                       style: ElevatedButton.styleFrom(
@@ -200,6 +243,61 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                         ),
                       ),
                     ),
+
+                  // Экран фейковой ошибки посередине процесса
+                  if (_showFakeError) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        border: Border.all(color: Colors.redAccent, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text(
+                            '[CRITICAL ERROR]',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Courier',
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Offset mismatch at 0x7FFF5FBFF848.\nMemory protection triggered.\nInjection aborted, restart required.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 13,
+                              fontFamily: 'Courier',
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: _restartAfterError,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'RESTART INJECTION',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Courier',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   if (_isInjecting) ...[
                     const SizedBox(height: 20),
