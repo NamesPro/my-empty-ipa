@@ -1,26 +1,20 @@
-#include "AppDelegate.h"
-#include "GeneratedPluginRegistrant.h"
+name: void_injector
+description: A new Flutter project.
+publish_to: 'none'
+version: 1.0.0+1
 
-@implementation AppDelegate
+environment:
+  sdk: '>=3.0.0 <4.0.0'
 
-- (BOOL)application:(UIApplication *)application
-    didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-  [GeneratedPluginRegistrant registerWithRegistry:self];
+dependencies:
+  flutter:
+    sdk: flutter
+  no_screenshot: ^0.3.0
 
-  // Создаем невидимое поле с паролем (isSecureTextEntry)
-  // Система iOS подумает, что тут вводится пароль, и сама закрасит скриншоты в черный цвет
-  UIWindow *window = self.window;
-  if (window != nil) {
-      UITextField *field = [[UITextField alloc] init];
-      field.secureTextEntry = YES;
-      [window addSubview:field];
-      [field.centerYAnchor constraintEqualToAnchor:window.centerYAnchor].active = YES;
-      [field.centerXAnchor constraintEqualToAnchor:window.centerXAnchor].active = YES;
-      [window.layer.superlayer addSublayer:field.layer];
-      [[field.layer.sublayers firstObject] addSublayer:window.layer];
-  }
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
 
-  return [super application:application didFinishLaunchingWithOptions:launchOptions];
-}
-
-@end
+flutter:
+  uses-material-design: true
