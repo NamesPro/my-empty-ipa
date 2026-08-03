@@ -31,14 +31,11 @@ class InjectorScreen extends StatefulWidget {
   State<InjectorScreen> createState() => _InjectorScreenState();
 }
 
-// Используем SingleTickerProviderStateMixin для AnimationController
 class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProviderStateMixin {
   bool _isInjecting = false;
   bool _showScam = false;
 
   late AnimationController _progressController;
-  
-  // ValueNotifier позволяет обновлять только список логов, не перерисовывая весь экран
   final ValueNotifier<List<String>> _logsNotifier = ValueNotifier([]);
   Timer? _logTimer;
   final Random _random = Random();
@@ -109,29 +106,25 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
 
     int tickCount = 0;
 
-    // Таймер работает на частоте ~60 FPS (16 мс)
+    // Таймер работает на высокой скорости (~60 FPS)
     _logTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       tickCount++;
       List<String> currentLogs = List.from(_logsNotifier.value);
 
-      // Первые 3 секунды (примерно 180 тиков) выводим реалистичные логи
       if (tickCount < 180) {
-        if (tickCount % 30 == 0) { // Каждые полсекунды
+        if (tickCount % 30 == 0) {
           int realisticIndex = (tickCount ~/ 30) - 1;
           if (realisticIndex < _realisticLogs.length) {
-            // Добавляем в НАЧАЛО списка (так как список перевернут)
             currentLogs.insert(0, _realisticLogs[realisticIndex]);
           }
         }
       } else {
-        // НАЧИНАЕТСЯ БЕЗУМИЕ: 80 строк за ОДИН кадр (около 5000 строк в секунду)
+        // Безумная скорость потока логов
         for (int i = 0; i < 80; i++) {
           currentLogs.insert(0, _garbageLogs[_random.nextInt(_garbageLogs.length)]);
         }
       }
 
-      // ОПТИМИЗАЦИЯ: Удерживаем в памяти только последние 150 строк.
-      // Это спасет приложение от вылета из-за нехватки оперативной памяти.
       if (currentLogs.length > 150) {
         currentLogs = currentLogs.sublist(0, 150);
       }
@@ -202,7 +195,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
 
                   if (_isInjecting) ...[
                     const SizedBox(height: 20),
-                    // Используем AnimatedBuilder для плавной отрисовки прогресса
                     AnimatedBuilder(
                       animation: _progressController,
                       builder: (context, child) {
@@ -227,21 +219,19 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
                             ),
                           ],
                         );
-                      }
+                      },
                     ),
                     const SizedBox(height: 20),
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        // ValueListenableBuilder обновляет только список логов
                         child: ValueListenableBuilder<List<String>>(
                           valueListenable: _logsNotifier,
                           builder: (context, logs, child) {
                             return ListView.builder(
-                              reverse: true, // КЛЮЧЕВАЯ ОПТИМИЗАЦИЯ: список строится снизу вверх
+                              reverse: true,
                               itemCount: logs.length,
                               itemBuilder: (context, index) {
-                                // Поскольку список перевернут, index 0 - это последняя добавленная строка
                                 final isGarbage = logs.length > 10;
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 1),
@@ -267,7 +257,6 @@ class _InjectorScreenState extends State<InjectorScreen> with SingleTickerProvid
             ),
           ),
 
-          // Экран СКАМА
           if (_showScam)
             Container(
               color: Colors.black,
