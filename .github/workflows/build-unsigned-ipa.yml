@@ -1,17 +1,38 @@
-name: void_injector
-description: A fake injector app for pranks.
-version: 1.0.0
+Name: Build Unsigned IPA
 
-environment:
-  sdk: ">=3.0.0 <4.0.0"
+on:
+  workflow_dispatch:
 
-dependencies:
-  flutter:
-    sdk: flutter
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
 
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-flutter:
-  uses-material-design: true
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build IPA
+        run: flutter build ipa --release --no-codesign
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload app-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipa-file
+          path: app-unsigned.ipa
+          if-no-files-found: error
