@@ -48,7 +48,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
     '[Memory] Anti-cheat bypassed!',
   ];
 
-  // ОГРОМНЫЙ массив мусора для оставшихся 295 секунд (быстро, много, нечитаемо)
+  // ОГРОМНЫЙ массив мусора (летит быстро, прочитать невозможно)
   final List<String> _garbageLogs = [
     '[DYLIB] Loading libinject.dylib...',
     '[DYLIB] Resolving symbols...',
@@ -111,6 +111,24 @@ class _InjectorScreenState extends State<InjectorScreen> {
     '[DYLIB] Respringing...',
     '[DYLIB] Respring complete!',
     '[DYLIB] All done!',
+    '[DYLIB] Loading kernel cache...',
+    '[DYLIB] Kernel cache loaded!',
+    '[DYLIB] Patching sysent...',
+    '[DYLIB] Sysent patched!',
+    '[DYLIB] Overriding mach traps...',
+    '[DYLIB] Mach traps overridden!',
+    '[DYLIB] Bypassing SIP...',
+    '[DYLIB] SIP bypassed!',
+    '[DYLIB] Loading kext...',
+    '[DYLIB] Kext loaded!',
+    '[DYLIB] Overriding vnode operations...',
+    '[DYLIB] Vnode ops overridden!',
+    '[DYLIB] Hiding from sysctl...',
+    '[DYLIB] Hidden from sysctl!',
+    '[DYLIB] Bypassing quarantine...',
+    '[DYLIB] Quarantine bypassed!',
+    '[DYLIB] Overriding file ops...',
+    '[DYLIB] File ops overridden!',
   ];
 
   void _startInjection() {
@@ -127,7 +145,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
     const int totalSeconds = 300; // 5 минут
     int secondsElapsed = 0;
 
-    _timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    _timer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
       setState(() {
         secondsElapsed++;
         _progress = (secondsElapsed / totalSeconds) * 100;
@@ -138,24 +156,24 @@ class _InjectorScreenState extends State<InjectorScreen> {
           return;
         }
 
-        // Первые 5 секунд (100 тиков по 50 мс = 5 секунд)
-        if (secondsElapsed <= 100) {
-          // Реалистичные строки — медленно, по одной
-          if (logIndex < _realisticLogs.length && secondsElapsed % 4 == 0) {
+        // Первые 5 секунд (≈166 тиков по 30 мс)
+        if (secondsElapsed <= 166) {
+          // Реалистичные строки
+          if (logIndex < _realisticLogs.length && secondsElapsed % 5 == 0) {
             _logLines.add(_realisticLogs[logIndex]);
             logIndex++;
           }
         } else {
-          // Остальное время — мусор летит очень быстро
+          // Мусор — очень быстро, по 3-4 строки за раз
           if (garbageIndex < _garbageLogs.length) {
-            // Добавляем по 2-3 строки за раз
-            int count = (garbageIndex % 3 == 0) ? 3 : 2;
-            for (int i = 0; i < count && garbageIndex < _garbageLogs.length; i++) {
-              _logLines.add(_garbageLogs[garbageIndex]);
-              garbageIndex++;
-            }
+    // Всегда добавляем по 10 строк за раз
+    int count = 10;
+    for (int i = 0; i < count && garbageIndex < _garbageLogs.length; i++) {
+        _logLines.add(_garbageLogs[garbageIndex]);
+        garbageIndex++;
+    }
+}
           } else {
-            // Если мусор кончился — повторяем
             garbageIndex = 0;
           }
         }
@@ -165,7 +183,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
           if (_scrollController.hasClients) {
             _scrollController.animateTo(
               _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 30),
+              duration: const Duration(milliseconds: 20),
               curve: Curves.easeOut,
             );
           }
@@ -186,6 +204,7 @@ class _InjectorScreenState extends State<InjectorScreen> {
     return Scaffold(
       body: Stack(
         children: [
+          // Основной экран
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -252,14 +271,14 @@ class _InjectorScreenState extends State<InjectorScreen> {
                           controller: _scrollController,
                           itemCount: _logLines.length,
                           itemBuilder: (context, index) {
-                            final isGarbage = index > 6; // после первых 6 строк — мусор
+                            final isGarbage = index > 6;
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 1),
                               child: Text(
                                 _logLines[index],
                                 style: TextStyle(
-                                  fontSize: isGarbage ? 9 : 11,
-                                  color: isGarbage ? Colors.grey[600] : Colors.grey,
+                                  fontSize: isGarbage ? 8 : 11,
+                                  color: isGarbage ? Colors.grey[500] : Colors.grey,
                                   fontFamily: 'Courier',
                                 ),
                               ),
@@ -276,53 +295,22 @@ class _InjectorScreenState extends State<InjectorScreen> {
             ),
           ),
 
+          // Сообщение YOU SCAMMED (без кнопки)
           if (_showScam)
             Container(
               color: Colors.black,
               width: double.infinity,
               height: double.infinity,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'YOU GOT SCAMMED',
-                    style: TextStyle(
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Courier',
-                      color: Colors.white,
-                    ),
+              child: const Center(
+                child: Text(
+                  'YOU SCAMMED',
+                  style: TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Courier',
+                    color: Colors.white,
                   ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    '😂',
-                    style: TextStyle(
-                      fontSize: 60,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _showScam = false;
-                        _isInjecting = false;
-                        _progress = 0.0;
-                        _logLines = [];
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                    ),
-                    child: const Text(
-                      'RESTART APP',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Courier',
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
         ],
