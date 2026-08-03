@@ -45,7 +45,9 @@ class _InjectorScreenState extends State<InjectorScreen>
   bool _isInjecting = false;
   bool _showScam = false;
   bool _showFakeError = false;
-  bool _errorTriggeredOnce = false;
+  
+  // Флаг, чтобы ошибка вылазила только один раз за сессию
+  bool _hasErroredBefore = false;
 
   late AnimationController _progressController;
   final ValueNotifier<List<String>> _logsNotifier = ValueNotifier([]);
@@ -98,13 +100,13 @@ class _InjectorScreenState extends State<InjectorScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Таймер увеличен до 10 минут
+    // Таймер на 10 минут
     _progressController = AnimationController(
       vsync: this,
       duration: const Duration(minutes: 10),
     )..addListener(() {
-        // На 5-й минуте (50% прогресса) делаем фейковую ошибку (только 1 раз за запуск)
-        if (_progressController.value >= 0.5 && !_errorTriggeredOnce) {
+        // Ошибка сработает ровно 1 раз на 5-й минуте (50%), дальше путь свободен к скаму
+        if (_progressController.value >= 0.5 && !_hasErroredBefore) {
           _triggerFakeError();
         } else if (_progressController.isCompleted) {
           _finishScam();
@@ -143,9 +145,8 @@ class _InjectorScreenState extends State<InjectorScreen>
       _showFakeError = false;
     });
 
-    _errorTriggeredOnce = false;
     _logsNotifier.value = [];
-    _progressController.forward(from: 0.0);
+    _progressController.forward(from: _progressController.value);
     _startLogLoop();
   }
 
@@ -154,7 +155,7 @@ class _InjectorScreenState extends State<InjectorScreen>
     _logTimer?.cancel();
     setState(() {
       _isInjecting = false;
-      _errorTriggeredOnce = true;
+      _hasErroredBefore = true; // Запоминаем, что ошибка уже была
       _showFakeError = true;
     });
   }
@@ -163,29 +164,24 @@ class _InjectorScreenState extends State<InjectorScreen>
     setState(() {
       _showFakeError = false;
     });
+    // Продолжаем движение прогресса с того же места или с нуля (тут с текущего или с 0.5)
+    _progressController.forward();
     _startInjection();
   }
 
   void _startLogLoop() {
     _logTimer?.cancel();
-    _logTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    // Ускоренная генерация логов (каждые 15 миллисекунд)
+    _logTimer = Timer.periodic(const Duration(milliseconds: 15), (timer) {
       List<String> currentLogs = List.from(_logsNotifier.value);
 
-      if (_progressController.value < 0.1) {
-        if (_random.nextDouble() < 0.1) {
-          final log = _realisticLogs[_random.nextInt(_realisticLogs.length)];
-          if (!currentLogs.contains(log)) {
-            currentLogs.insert(0, log);
-          }
-        }
-      } else {
-        for (int i = 0; i < 5; i++) {
-          currentLogs.insert(0, _garbageLogs[_random.nextInt(_garbageLogs.length)]);
-        }
+      // Выбрасываем сразу пачку строк для бешеной скорости
+      for (int i = 0; i < 15; i++) {
+        currentLogs.insert(0, _garbageLogs[_random.nextInt(_garbageLogs.length)]);
       }
 
-      if (currentLogs.length > 150) {
-        currentLogs = currentLogs.sublist(0, 150);
+      if (currentLogs.length > 250) {
+        currentLogs = currentLogs.sublist(0, 250);
       }
 
       _logsNotifier.value = currentLogs;
@@ -244,7 +240,7 @@ class _InjectorScreenState extends State<InjectorScreen>
                       ),
                     ),
 
-                  // Экран фейковой ошибки посередине процесса
+                  // Экран фейковой ошибки
                   if (_showFakeError) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -338,14 +334,13 @@ class _InjectorScreenState extends State<InjectorScreen>
                               reverse: true,
                               itemCount: logs.length,
                               itemBuilder: (context, index) {
-                                final isGarbage = logs.length > 10;
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 1),
                                   child: Text(
                                     logs[index],
                                     style: TextStyle(
-                                      fontSize: isGarbage ? 8 : 11,
-                                      color: isGarbage ? Colors.grey[600] : Colors.grey[300],
+                                      fontSize: 9,
+                                      color: Colors.grey[400],
                                       fontFamily: 'Courier',
                                     ),
                                   ),
